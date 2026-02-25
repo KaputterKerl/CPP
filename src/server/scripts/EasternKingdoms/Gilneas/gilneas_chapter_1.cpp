@@ -668,6 +668,20 @@ struct npc_gilnean_crow : public PassiveAI
 private:
     EventMap _events;
 };
+
+/*######
+ * # Lieutenant Walden (Entry 34863)
+ *######*/
+
+struct npc_lieutenant_walden : public ScriptedAI
+{
+    npc_lieutenant_walden(Creature* creature) : ScriptedAI(creature) { }
+
+    void Reset() override
+    {
+        me->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
+    }
+};
 }
 
 void AddSC_gilneas_chapter_1()
@@ -679,4 +693,5 @@ void AddSC_gilneas_chapter_1()
     RegisterCreatureAI(npc_greymanes_horse);
     RegisterCreatureAI(npc_crowleys_horse);
     RegisterCreatureAI(npc_gilnean_crow);
+    RegisterCreatureAI(npc_lieutenant_walden);
 }
