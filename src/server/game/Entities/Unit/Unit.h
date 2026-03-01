@@ -87,7 +87,6 @@ class Spell;
 class SpellCastTargets;
 class SpellHistory;
 class SpellInfo;
-class SummonInfo;
 class Totem;
 class Transport;
 class TransportBase;
@@ -102,9 +101,6 @@ enum ProcFlagsSpellPhase : uint32;
 enum ProcFlagsSpellType : uint32;
 enum ZLiquidStatus : uint32;
 enum CharmType : uint8;
-
-enum class SummonPropertiesControl : uint8;
-enum class SummonPropertiesSlot: int8;
 
 namespace Movement
 {
@@ -760,7 +756,7 @@ class TC_GAME_API Unit : public WorldObject
 
         uint32 HasUnitTypeMask(uint32 mask) const { return mask & m_unitTypeMask; }
         void AddUnitTypeMask(uint32 mask) { m_unitTypeMask |= mask; }
-        virtual bool IsSummon() const { return false; }
+        bool IsSummon() const   { return (m_unitTypeMask & UNIT_MASK_SUMMON) != 0; }
         bool IsMinion() const   { return (m_unitTypeMask & UNIT_MASK_MINION) != 0; }
         bool IsGuardian() const { return (m_unitTypeMask & UNIT_MASK_GUARDIAN) != 0; }
         bool IsPet() const      { return (m_unitTypeMask & UNIT_MASK_PET) != 0; }
@@ -1081,21 +1077,14 @@ class TC_GAME_API Unit : public WorldObject
 
         ObjectGuid GetOwnerGUID() const override { return GetGuidValue(UNIT_FIELD_SUMMONEDBY); }
         void SetOwnerGUID(ObjectGuid owner);
-
         ObjectGuid GetCreatorGUID() const { return GetGuidValue(UNIT_FIELD_CREATEDBY); }
         void SetCreatorGUID(ObjectGuid creator) { SetGuidValue(UNIT_FIELD_CREATEDBY, creator); }
-        Unit* GetCreator() const;
-
         ObjectGuid GetMinionGUID() const { return GetGuidValue(UNIT_FIELD_SUMMON); }
         void SetMinionGUID(ObjectGuid guid) { SetGuidValue(UNIT_FIELD_SUMMON, guid); }
-
-        ObjectGuid GetPetGUID() const { return m_SummonSlot[SUMMON_SLOT_PET]; }
         void SetPetGUID(ObjectGuid guid) { m_SummonSlot[SUMMON_SLOT_PET] = guid; }
-
-        ObjectGuid GetCritterGUID() const { return GetGuidValue(UNIT_FIELD_CRITTER); }
+        ObjectGuid GetPetGUID() const { return m_SummonSlot[SUMMON_SLOT_PET]; }
         void SetCritterGUID(ObjectGuid guid) { SetGuidValue(UNIT_FIELD_CRITTER, guid); }
-        Creature* GetCritter() const;
-
+        ObjectGuid GetCritterGUID() const { return GetGuidValue(UNIT_FIELD_CRITTER); }
         ObjectGuid GetOwnerOrCreatorGUID() const { return GetOwnerGUID() ? GetOwnerGUID() : GetCreatorGUID(); }
 
         ObjectGuid GetCharmerGUID() const { return GetGuidValue(UNIT_FIELD_CHARMEDBY); }
@@ -1333,26 +1322,6 @@ class TC_GAME_API Unit : public WorldObject
 
         std::array<ObjectGuid, MAX_SUMMON_SLOT> m_SummonSlot;
         std::array<ObjectGuid, MAX_GAMEOBJECT_SLOT> m_ObjectSlot;
-
-        // Registers the SummonInfo API of a summoned creature to allow to safely access it
-        void RegisterSummon(SummonInfo* summon);
-        // Unregisters the SummonInfo API of a summoned creature so it can no longer be accessed
-        void UnregisterSummon(SummonInfo* summon);
-        // Despawns all summons that should despawn when the summoner logs out or despawns
-        void DespawnSummonsOnSummonerLogout();
-        // Despawns all summons that should despawn when the summoner dies
-        void DespawnSummonsOnSummonerDeath();
-        // Dismisses the currently active pet summon(s) (class pets and summons which are considered pets)
-        void DismissPet();
-
-        // Returns the currently active summon that is the summoner's specified summon slot
-        SummonInfo* GetSummonInSlot(SummonPropertiesSlot slot) const;
-        // Returns a vector with all currently active summons with the specified creature Id
-        std::vector<SummonInfo*> GetSummonsByCreatureId(uint32 creatureId);
-        // Returns a vector with all currently active summons which have been created by the specified spell Id
-        std::vector<SummonInfo*> GetSummonsBySpellId(uint32 spellId);
-        // Returns a vector with all currently active summons which are being controlled in a specific way
-        std::vector<SummonInfo*> GetSummonsByControlType(SummonPropertiesControl control);
 
         ShapeshiftForm GetShapeshiftForm() const { return ShapeshiftForm(GetByteValue(UNIT_FIELD_BYTES_2, UNIT_BYTES_2_OFFSET_SHAPESHIFT_FORM)); }
         void SetShapeshiftForm(ShapeshiftForm form);
@@ -1850,10 +1819,6 @@ class TC_GAME_API Unit : public WorldObject
         std::unordered_map<MovementChangeType, PlayerMovementPendingChange> m_pendingMovementChanges;
 
         /* Player Movement fields END*/
-
-        // SummonInfo slot handling
-        std::vector<SummonInfo*> _unslottedSummons;
-        std::vector<SummonInfo*> _slottedSummons;
 };
 
 namespace Trinity

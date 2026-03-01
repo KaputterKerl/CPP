@@ -79,7 +79,6 @@
 #include "SpellInfo.h"
 #include "SpellMgr.h"
 #include "SpellPackets.h"
-#include "SummonInfo.h"
 #include "TemporarySummon.h"
 #include "Totem.h"
 #include "Transport.h"
@@ -379,8 +378,6 @@ Unit::Unit(bool isWorldObject) :
 
     _oldFactionId = 0;
     _isWalkingBeforeCharm = false;
-
-    _slottedSummons.resize(AsUnderlyingType(SummonPropertiesSlot::Max), nullptr);
 }
 
 ////////////////////////////////////////////////////////////
@@ -5726,16 +5723,6 @@ void Unit::SetOwnerGUID(ObjectGuid owner)
     RemoveFieldNotifyFlag(UF_FLAG_OWNER);
 }
 
-Unit* Unit::GetCreator() const
-{
-    return ObjectAccessor::GetUnit(*this, GetCreatorGUID());
-}
-
-Creature* Unit::GetCritter() const
-{
-    return ObjectAccessor::GetCreature(*this, GetCritterGUID());
-}
-
 Player* Unit::GetControllingPlayer() const
 {
     if (ObjectGuid guid = GetCharmerOrOwnerGUID())
@@ -6117,10 +6104,10 @@ void Unit::RemoveAllControlled()
         m_Controlled.erase(m_Controlled.begin());
         if (target->GetCharmerGUID() == GetGUID())
             target->RemoveCharmAuras();
-        else if (target->GetOwnerGUID() == GetGUID() && target->IsSummon())
+        else if (target->GetOwnerOrCreatorGUID() == GetGUID() && target->IsSummon())
             target->ToTempSummon()->UnSummon();
-        //else
-        //    TC_LOG_ERROR("entities.unit", "Unit %u is trying to release unit %u which is neither charmed nor owned by it", GetEntry(), target->GetEntry());
+        else
+            TC_LOG_ERROR("entities.unit", "Unit %u is trying to release unit %u which is neither charmed nor owned by it", GetEntry(), target->GetEntry());
     }
     if (GetPetGUID())
         TC_LOG_FATAL("entities.unit", "Unit %u is not able to release its pet %s", GetEntry(), GetPetGUID().ToString().c_str());
@@ -8606,8 +8593,7 @@ void Unit::setDeathState(DeathState s)
         ExitVehicle();                                      // Exit vehicle before calling RemoveAllControlled
                                                             // vehicles use special type of charm that is not removed by the next function
                                                             // triggering an assert
-
-        DespawnSummonsOnSummonerDeath();
+        UnsummonAllTotems();
         RemoveAllControlled();
         RemoveAllAurasOnDeath();
     }
@@ -8830,153 +8816,6 @@ uint32 Unit::GetCreatureTypeMask() const
 {
     uint32 creatureType = GetCreatureType();
     return (creatureType >= 1) ? (1 << (creatureType - 1)) : 0;
-}
-
-void Unit::RegisterSummon(SummonInfo* summon)
-{
-    if (!summon)
-        return;
-
-    SummonPropertiesSlot slot = summon->GetSummonSlot();
-
-    // Wild Summons usually don't need any tracking but some do have certain SummonPropertiesFlags which
-    // causes them to interact with the summoner in some way (e.g. despawning when the summoner died)
-    if (slot == SummonPropertiesSlot::None)
-    {
-        if (advstd::ranges::contains(_unslottedSummons, summon))
-            return;
-
-        _unslottedSummons.push_back(summon);
-        return;
-    }
-
-    uint8 targetSlot = AsUnderlyingType(slot);
-
-    // Another summon is occupying the slot. Unsummon that one first
-    if (SummonInfo* activeSummon = _slottedSummons[targetSlot])
-        activeSummon->GetSummonedCreature()->DespawnOrUnsummon();
-
-    _slottedSummons[targetSlot] = summon;
-}
-
-void Unit::UnregisterSummon(SummonInfo* summon)
-{
-    if (!summon)
-        return;
-
-    SummonPropertiesSlot slot = summon->GetSummonSlot();
-    if (slot == SummonPropertiesSlot::None)
-    {
-        std::erase(_unslottedSummons, summon);
-        return;
-    }
-
-    uint8 targetSlot = AsUnderlyingType(slot);
-    _slottedSummons[targetSlot] = nullptr;
-}
-
-void Unit::DespawnSummonsOnSummonerLogout()
-{
-    std::vector<SummonInfo*> unslottedSummons = _unslottedSummons;
-    for (SummonInfo* summon : unslottedSummons)
-        if (summon->DespawnsOnSummonerLogout())
-            summon->GetSummonedCreature()->DespawnOrUnsummon();
-
-    std::vector<SummonInfo*> slottedSummons = _slottedSummons;
-    for (SummonInfo* summon : slottedSummons)
-        if (summon && summon->DespawnsOnSummonerLogout())
-            summon->GetSummonedCreature()->DespawnOrUnsummon();
-}
-
-void Unit::DespawnSummonsOnSummonerDeath()
-{
-    std::vector<SummonInfo*> unslottedSummons = _unslottedSummons;
-    for (SummonInfo* summon : unslottedSummons)
-        if (summon->DespawnsOnSummonerDeath())
-            summon->GetSummonedCreature()->DespawnOrUnsummon();
-
-    std::vector<SummonInfo*> slottedSummons = _slottedSummons;
-    for (SummonInfo* summon : slottedSummons)
-        if (summon && summon->DespawnsOnSummonerDeath())
-            summon->GetSummonedCreature()->DespawnOrUnsummon();
-
-}
-
-void Unit::DismissPet()
-{
-    if (!GetMinionGUID())
-        return;
-
-    for (SummonInfo* summonInfo : GetSummonsByControlType(SummonPropertiesControl::Pet))
-        summonInfo->GetSummonedCreature()->DespawnOrUnsummon();
-}
-
-SummonInfo* Unit::GetSummonInSlot(SummonPropertiesSlot slot) const
-{
-    if (slot == SummonPropertiesSlot::None ||
-        slot == SummonPropertiesSlot::Max ||
-        slot == SummonPropertiesSlot::AnyAvailableTotem)
-        return nullptr;
-
-    return _slottedSummons[AsUnderlyingType(slot)];
-}
-
-std::vector<SummonInfo*> Unit::GetSummonsByCreatureId(uint32 creatureId)
-{
-    if (creatureId == 0)
-        return {};
-
-    std::vector<SummonInfo*> summons;
-
-
-    std::ranges::copy_if(_unslottedSummons, std::back_inserter(summons), [creatureId](SummonInfo const* summon)
-    {
-        return summon->GetSummonedCreature()->GetEntry() == creatureId;
-    });
-
-    std::ranges::copy_if(_slottedSummons, std::back_inserter(summons), [creatureId](SummonInfo const* summon)
-    {
-        return summon && summon->GetSummonedCreature()->GetEntry() == creatureId;
-    });
-
-    return summons;
-}
-
-std::vector<SummonInfo*> Unit::GetSummonsBySpellId(uint32 spellId)
-{
-    if (spellId == 0)
-        return {};
-
-    std::vector<SummonInfo*> summons;
-
-    std::ranges::copy_if(_unslottedSummons, std::back_inserter(summons), [spellId](SummonInfo const* summon)
-    {
-        return summon->GetSummonedCreature()->GetUInt32Value(UNIT_CREATED_BY_SPELL) == spellId;
-    });
-
-    std::ranges::copy_if(_slottedSummons, std::back_inserter(summons), [spellId](SummonInfo const* summon)
-    {
-        return summon && summon->GetSummonedCreature()->GetUInt32Value(UNIT_CREATED_BY_SPELL) == spellId;
-    });
-
-    return summons;
-}
-
-std::vector<SummonInfo*> Unit::GetSummonsByControlType(SummonPropertiesControl control)
-{
-    std::vector<SummonInfo*> summons;
-
-    std::ranges::copy_if(_unslottedSummons, std::back_inserter(summons), [control](SummonInfo const* summon)
-    {
-        return summon->GetControl() == control;
-    });
-
-    std::ranges::copy_if(_slottedSummons, std::back_inserter(summons), [control](SummonInfo const* summon)
-    {
-        return summon && summon->GetControl() == control;
-    });
-
-    return summons;
 }
 
 void Unit::SetShapeshiftForm(ShapeshiftForm form)
@@ -9744,7 +9583,7 @@ void Unit::RemoveFromWorld()
         RemoveAllDynObjects();
 
         ExitVehicle();  // Remove applied auras with SPELL_AURA_CONTROL_VEHICLE
-        DespawnSummonsOnSummonerLogout();
+        UnsummonAllTotems();
         RemoveAllControlled();
 
         RemoveAreaAurasDueToLeaveWorld();
@@ -9767,10 +9606,6 @@ void Unit::RemoveFromWorld()
                 ABORT();
             }
         }
-
-        // Clear all active summon references. If we are about to switch map instances, we want to make sure that we leave all summons behind so we won't do threadunsafe operations
-        _unslottedSummons.clear();
-        _slottedSummons.clear();
 
         WorldObject::RemoveFromWorld();
         m_duringRemoveFromWorld = false;
