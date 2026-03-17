@@ -18,26 +18,26 @@
 #ifndef TRINITY_MAP_H
 #define TRINITY_MAP_H
 
-#include "Define.h"
+#include <bitset>
+#include <list>
+#include <memory>
 
 #include "Cell.h"
+#include "Define.h"
 #include "DynamicTree.h"
 #include "GridDefines.h"
 #include "GridRefManager.h"
-#include "MapDefines.h"
-#include "MapReference.h"
-#include "MapRefManager.h"
 #include "MPSCQueue.h"
+#include "MapDefines.h"
+#include "MapRefManager.h"
+#include "MapReference.h"
 #include "ObjectGuid.h"
 #include "SharedDefines.h"
 #include "SpawnData.h"
 #include "Timer.h"
-#include "WorldStateDefines.h"
 #include "Transaction.h"
 #include "Weather.h"
-#include <bitset>
-#include <list>
-#include <memory>
+#include "WorldStateDefines.h"
 
 class Battleground;
 class BattlegroundMap;

@@ -15,21 +15,22 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "StringFormat.h"
-#include "Util.h"
-#include "MapDefines.h"
-#include <boost/filesystem/path.hpp>
-#include <boost/filesystem/operations.hpp>
 #include <bitset>
+#include <boost/filesystem/operations.hpp>
+#include <boost/filesystem/path.hpp>
 #include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <deque>
 #include <fstream>
 #include <set>
 #include <unordered_map>
-#include <cstdlib>
-#include <cstring>
 
 #include "Common.h"
+#include "MapDefines.h"
+#include "IteratorPair.h"
+#include "StringFormat.h"
+#include "Util.h"
 #ifdef PLATFORM_WINDOWS
 #undef PLATFORM_WINDOWS
 #endif
@@ -484,9 +485,9 @@ bool ConvertADT(std::string const& inputPath, std::string const& outputPath, int
     bool hasHoles = false;
     bool hasFlightBox = false;
 
-    for (std::multimap<std::string, FileChunk*>::const_iterator itr = adt.chunks.lower_bound("MCNK"); itr != adt.chunks.upper_bound("MCNK"); ++itr)
+    for (auto const& [_, rawChunk] : Trinity::Containers::MapEqualRange(adt.chunks, "MCNK"))
     {
-        adt_MCNK* mcnk = itr->second->As<adt_MCNK>();
+        adt_MCNK* mcnk = rawChunk->As<adt_MCNK>();
 
         // Area data
         area_ids[mcnk->iy][mcnk->ix] = mcnk->areaid;
@@ -511,6 +512,7 @@ bool ConvertADT(std::string const& inputPath, std::string const& outputPath, int
         // Set map height as grid height
         for (int y = 0; y <= ADT_CELL_SIZE; y++)
         {
+            // edge V9s are overlapping between cells (i * ADT_CELL_SIZE is correct, otherwise we would be missing a row/column of V8s between)
             int cy = mcnk->iy * ADT_CELL_SIZE + y;
             for (int x = 0; x <= ADT_CELL_SIZE; x++)
             {
@@ -530,12 +532,13 @@ bool ConvertADT(std::string const& inputPath, std::string const& outputPath, int
         }
 
         // Get custom height
-        if (FileChunk* chunk = itr->second->GetSubChunk("MCVT"))
+        if (FileChunk* chunk = rawChunk->GetSubChunk("MCVT"))
         {
             adt_MCVT* mcvt = chunk->As<adt_MCVT>();
             // get V9 height map
             for (int y = 0; y <= ADT_CELL_SIZE; y++)
             {
+                // edge V9s are overlapping between cells (i * ADT_CELL_SIZE is correct, otherwise we would be missing a row/column of V8s between)
                 int cy = mcnk->iy * ADT_CELL_SIZE + y;
                 for (int x = 0; x <= ADT_CELL_SIZE; x++)
                 {
@@ -558,7 +561,7 @@ bool ConvertADT(std::string const& inputPath, std::string const& outputPath, int
         // Liquid data
         if (mcnk->sizeMCLQ > 8)
         {
-            if (FileChunk* chunk = itr->second->GetSubChunk("MCLQ"))
+            if (FileChunk* chunk = rawChunk->GetSubChunk("MCLQ"))
             {
                 adt_MCLQ* liquid = chunk->As<adt_MCLQ>();
                 int count = 0;
