@@ -1499,14 +1499,6 @@ void AuraEffect::HandleShapeshiftBoosts(Unit* target, bool apply) const
     }
 }
 
-bool AuraEffect::CanPeriodicTickCrit(Unit const* caster) const
-{
-    if (m_spellInfo->HasAttribute(SPELL_ATTR8_PERIODIC_CAN_CRIT))
-        return true;
-
-    return caster && caster->HasAuraTypeWithAffectMask(SPELL_AURA_ABILITY_PERIODIC_CRIT, m_spellInfo);
-}
-
 /*********************************************************/
 /***               AURA EFFECT HANDLERS                ***/
 /*********************************************************/
@@ -1748,12 +1740,13 @@ void AuraEffect::HandleAuraGhost(AuraApplication const* aurApp, uint8 mode, bool
     if (!(mode & AURA_EFFECT_HANDLE_SEND_FOR_CLIENT_MASK))
         return;
 
-    Unit* target = aurApp->GetTarget();
-    if (target->GetTypeId() != TYPEID_PLAYER)
+    Player* target = Object::ToPlayer(aurApp->GetTarget());
+    if (!target)
         return;
 
     if (apply)
     {
+        target->AddCharacterFlag(CHARACTER_FLAG_GHOST);
         target->SetFlag(PLAYER_FLAGS, PLAYER_FLAGS_GHOST);
         target->m_serverSideVisibility.SetValue(SERVERSIDE_VISIBILITY_GHOST, GHOST_VISIBILITY_GHOST);
         target->m_serverSideVisibilityDetect.SetValue(SERVERSIDE_VISIBILITY_GHOST, GHOST_VISIBILITY_GHOST);
@@ -1763,6 +1756,7 @@ void AuraEffect::HandleAuraGhost(AuraApplication const* aurApp, uint8 mode, bool
         if (target->HasAuraType(SPELL_AURA_GHOST))
             return;
 
+        target->RemoveCharacterFlag(CHARACTER_FLAG_GHOST);
         target->RemoveFlag(PLAYER_FLAGS, PLAYER_FLAGS_GHOST);
         target->m_serverSideVisibility.SetValue(SERVERSIDE_VISIBILITY_GHOST, GHOST_VISIBILITY_ALIVE);
         target->m_serverSideVisibilityDetect.SetValue(SERVERSIDE_VISIBILITY_GHOST, GHOST_VISIBILITY_ALIVE);
@@ -5833,11 +5827,11 @@ void AuraEffect::HandlePeriodicDamageAurasTick(Unit* target, Unit* caster) const
 
     bool crit = false;
 
-    if (CanPeriodicTickCrit(caster))
+    if (GetBase()->CanPeriodicTickCrit())
         crit = roll_chance_f(GetCritChanceFor(caster, target));
 
     if (crit)
-        damage = Unit::SpellCriticalDamageBonus(caster, m_spellInfo, damage);
+        damage = Unit::SpellCriticalDamageBonus(caster, m_spellInfo, damage, true);
 
     uint32 unmitigatedDamage = damage;
 
@@ -5922,11 +5916,11 @@ void AuraEffect::HandlePeriodicHealthLeechAuraTick(Unit* target, Unit* caster) c
 
     bool crit = false;
 
-    if (CanPeriodicTickCrit(caster))
+    if (GetBase()->CanPeriodicTickCrit())
         crit = roll_chance_f(GetCritChanceFor(caster, target));
 
     if (crit)
-        damage = Unit::SpellCriticalDamageBonus(caster, m_spellInfo, damage);
+        damage = Unit::SpellCriticalDamageBonus(caster, m_spellInfo, damage, true);
 
     uint32 unmitigatedDamage = damage;
 
@@ -6054,7 +6048,7 @@ void AuraEffect::HandlePeriodicHealAurasTick(Unit* target, Unit* caster) const
 
     bool crit = false;
 
-    if (CanPeriodicTickCrit(caster))
+    if (GetBase()->CanPeriodicTickCrit())
         crit = roll_chance_f(GetCritChanceFor(caster, target));
 
     if (crit)
