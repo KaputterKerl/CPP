@@ -283,6 +283,12 @@ public:
 ## npc_injured_draenei
 ######*/
 
+enum InjuredDraenei
+{
+    SPELL_FLASH_HEAL              = 2061,
+    NPC_SPELL_PRACTICE_CREDIT     = 44175
+};
+
 class npc_injured_draenei : public CreatureScript
 {
 public:
@@ -311,6 +317,14 @@ public:
         void JustEngagedWith(Unit* /*who*/) override { }
 
         void MoveInLineOfSight(Unit* /*who*/) override { }
+
+        void SpellHit(WorldObject* caster, SpellInfo const* spell) override
+        {
+            // class quest 26970 (Flash Heal practice)
+            if (spell->Id == SPELL_FLASH_HEAL)
+                if (Player* player = caster->ToPlayer())
+                    player->KilledMonsterCredit(NPC_SPELL_PRACTICE_CREDIT);
+        }
 
         void UpdateAI(uint32 /*diff*/) override { }
     };
