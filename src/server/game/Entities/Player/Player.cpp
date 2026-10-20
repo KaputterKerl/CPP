@@ -128,6 +128,8 @@
 static constexpr uint32 DEATH_EXPIRE_STEP = 5 * MINUTE;
 static constexpr uint8 MAX_DEATH_COUNT = 3;
 static constexpr std::array<uint32, MAX_DEATH_COUNT> CorpseReclaimDelay = { 30, 60, 120 };
+static constexpr uint32 SPELL_PALADIN_JUDGEMENT = 20271;
+static constexpr uint32 NPC_LEARN_JUDGEMENT_CREDIT = 44420;
 
 std::array<uint32, MAX_CLASSES> const MasterySpells =
 {
@@ -3115,6 +3117,10 @@ void Player::LearnSpell(uint32 spell_id, bool dependent, uint32 fromSkill /*= 0*
         data << uint32(spell_id);
         data << uint32(0);
         SendDirectMessage(&data);
+
+        // "Learn Spell: Judgement" objective of the Paladin class quests is a kill credit
+        if (spell_id == SPELL_PALADIN_JUDGEMENT)
+            KilledMonsterCredit(NPC_LEARN_JUDGEMENT_CREDIT);
     }
 
     // learn all disabled higher ranks and required spells (recursive)
